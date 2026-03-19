@@ -70,3 +70,38 @@ module "lambda_functions" {
   source_file     = "${path.root}/modules/lambda/functions/${each.key}.mjs"
   context         = module.base_label.context
 }
+
+module "api_gateway" {
+  source = "./modules/api_gateway"
+
+  context = module.base_label.context
+
+  lambda_invoke_arns = {
+    for k, v in module.lambda_functions : k => v.invoke_arn
+  }
+
+  lambda_function_names = {
+    for k, v in module.lambda_functions : k => v.function_name
+  }
+}
+
+# Setting up S3 bucket for React frontend
+module "s3_frontend" {
+  source = "./modules/s3-frontend"
+
+  context       = module.base_label.context
+  api_url       = module.api_gateway.invoke_url
+  react_app_dir = "${path.root}/../../react-app-frontend"
+}
+
+module "monitoring" {
+  source = "./modules/monitoring"
+
+  context     = module.base_label.context
+  alert_email = "maksym.stetsiv.ri.2024@lpnu.ua" 
+  
+  slack_webhook_url = var.slack_webhook_url
+  lambda_function_names = {
+    for k, v in module.lambda_functions : k => v.function_name
+  }
+}

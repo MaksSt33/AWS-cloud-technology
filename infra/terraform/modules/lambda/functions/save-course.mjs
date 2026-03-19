@@ -4,19 +4,25 @@ import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 const client = new DynamoDBClient({ region: process.env.AWS_REGION });
 const docClient = DynamoDBDocumentClient.from(client);
 
+const response = (statusCode, body) => ({
+  statusCode,
+  headers: {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+  },
+  body: JSON.stringify(body),
+});
+
 export const handler = async (event) => {
-  // Handle API Gateway proxy integration where body is a JSON string
-  let body = event;
-  if (event.body) {
-    try {
-      body = typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
-    } catch (e) {
-      console.error("Error parsing event body:", e);
-    }
+  let body;
+  try {
+    body = JSON.parse(event.body ?? "{}");
+  } catch {
+    return response(400, { message: "Invalid JSON body" });
   }
 
   if (!body.title) {
-    throw new Error("Missing required field: title");
+    return response(400, { message: "Missing required field: title" });
   }
 
   const id = body.title.replace(/ /g, "-").toLowerCase();
@@ -26,20 +32,17 @@ export const handler = async (event) => {
     watchHref: `http://www.pluralsight.com/courses/${id}`,
     authorId: body.authorId,
     length: body.length,
-    category: body.category
+    category: body.category,
   };
 
   try {
     await docClient.send(
-      new PutCommand({
-        TableName: process.env.TABLE_NAME,
-        Item: item
-      })
+      new PutCommand({ TableName: process.env.TABLE_NAME, Item: item })
     );
-    
-    return item;
+
+    return response(201, item);
   } catch (err) {
     console.error("Error saving course:", err);
-    throw err;
+    return response(500, { message: "Internal server error" });
   }
 };

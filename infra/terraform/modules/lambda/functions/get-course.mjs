@@ -4,42 +4,44 @@ import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
 const client = new DynamoDBClient({ region: process.env.AWS_REGION });
 const docClient = DynamoDBDocumentClient.from(client);
 
+const response = (statusCode, body) => ({
+  statusCode,
+  headers: {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+  },
+  body: JSON.stringify(body),
+});
+
 export const handler = async (event) => {
-  // Handle API Gateway proxy integration where path parameters are used
-  let id = event.id;
-  
-  if (event.pathParameters && event.pathParameters.id) {
-    id = event.pathParameters.id;
-  } else if (event.queryStringParameters && event.queryStringParameters.id) {
-    id = event.queryStringParameters.id;
-  }
+  const id = event.pathParameters?.id;
 
   if (!id) {
-    throw new Error("Missing required field: id");
+    return response(400, { message: "Missing required field: id" });
   }
 
   try {
     const { Item } = await docClient.send(
       new GetCommand({
         TableName: process.env.TABLE_NAME,
-        Key: { id: id }
+        Key: { id },
       })
     );
-    
+
     if (!Item) {
-      throw new Error("Course not found");
+      return response(404, { message: "Course not found" });
     }
 
-    return {
+    return response(200, {
       id: Item.id,
       title: Item.title,
       watchHref: Item.watchHref,
       authorId: Item.authorId,
       length: Item.length,
-      category: Item.category
-    };
+      category: Item.category,
+    });
   } catch (err) {
     console.error("Error fetching course:", err);
-    throw err;
+    return response(500, { message: "Internal server error" });
   }
 };

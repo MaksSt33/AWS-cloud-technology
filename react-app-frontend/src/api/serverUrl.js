@@ -1,0 +1,1 @@
+export default "https://3kw7bdbope.execute-api.eu-central-1.amazonaws.com/v1";
